@@ -34,15 +34,6 @@ class Listener:
     # Используется ли цифровая подпись
     DO_SIGN = False
 
-    # Получен ли NODE ID
-    NODE_ID_FLAG = False
-
-    # Получена ли подпись
-    EXCHANGE_SIGN_FLAG = False
-
-    # Получен ли ECC public key
-    EXCHANGE_PUBLIC_KEY_FLAG = False
-
     # Потоки байтов которые мы ожидаем
     # ID потока: {count: количество пакетов в данном потоке, packets: [массив полученных пакетов в потоке]}
     WAITING_STREAMS = {}
@@ -114,10 +105,6 @@ class Listener:
 
             # удаляем текущий stream
             del self.WAITING_STREAMS[packet.stream_id]
-
-
-            # ЭТО УДАЛИТЬ
-            self.data_handler()
 
 
     # Обрабатывает буффер данных

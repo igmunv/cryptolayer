@@ -1,4 +1,5 @@
 import os
+import time
 
 import lzma
 
@@ -107,12 +108,7 @@ class Sender:
 
     def _send(self, raw_data, packet_type, do_encrypt=True, do_sign=True):
         ready_packets = self.data_preparation(raw_data, packet_type, do_encrypt=do_encrypt, do_sign=do_sign)
-        print("count: ", len(ready_packets))
         for n, packet in enumerate(ready_packets):
             ready_text = " ".join(packet)
-
-            print(n)
-            print(type(self.module_send))
             self.module_send(ready_text)
             # time.sleep(config.DELAY)
-            print()

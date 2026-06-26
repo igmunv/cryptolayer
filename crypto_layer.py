@@ -10,12 +10,15 @@ from prompt_toolkit import HTML
 from prompt_toolkit import print_formatted_text
 
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 import module_manager
 import sender
 import listener
 import packet
+import getpass
 
 from config import *
 
@@ -26,7 +29,7 @@ pt_session = PromptSession()
 # Мессенджер
 MESSENGER_CLASS = None
 
-# ID собеседника
+# ID собеседника в мессенджере
 COMPANION_ID = None
 
 # ID текущего узла
@@ -46,6 +49,19 @@ LISTENER = None
 SENDER = None
 
 
+# NODE ID собеседника
+COMPANION_NODE_ID = None
+
+# подпись собеседника
+COMPANION_SIGN = None
+
+# ECC public key собеседника
+COMPANION_PUBLIC_KEY = None
+
+
+USER_PASSWORD = None
+
+
 def main():
 
     init()
@@ -60,6 +76,13 @@ def main():
 
 
 def init():
+
+    global USER_PASSWORD
+
+    # Спрашиваем пароль
+    upass = getpass.getpass("Your password: ")
+    USER_PASSWORD = bytearray(upass.encode('utf-8'))
+    del upass
 
     # Создаем директорию с данными
     os.makedirs(DATA_DIR_PATH, exist_ok=True)
@@ -78,16 +101,26 @@ def init():
 
 
     # Передача друг другу Node ID
-    print("SENDER.send_node_id(NODE_ID)")
     SENDER.send_node_id(NODE_ID)
 
-    # Передача цифровой подписи
+    # Ожидаем NODE ID собеседника
+    while not COMPANION_NODE_ID:
+        time.sleep(0.1)
+
+    print("COMPANION_NODE_ID", "=", COMPANION_NODE_ID)
 
     # Проверка существования цифровой подписи собеседника
+    check_and_get_companion_sign()
+
+
+    # Передача цифровой подписи
 
     # Затем спрашиваем у пользователя доверяем ли этой подписи, показывая первые 4 символа, и последние
 
     # Ветвеление*
+
+
+    remove_password_from_ram()
 
 
     # - - РАБОТА С КЛЮЧАМИ ШИФРОВАНИЯ - -
@@ -176,8 +209,6 @@ def generate_signature():
     global SIGN_PRIVATE_KEY
     global SIGN_PUBLIC_KEY
 
-    password = b"USER_PASSWORD!!!"
-
     if os.path.exists(SIGN_PRIVATE_FILE_PATH):
 
         with open(SIGN_PRIVATE_FILE_PATH, "rb") as f:
@@ -187,7 +218,7 @@ def generate_signature():
 
             SIGN_PRIVATE_KEY = serialization.load_pem_private_key(
                 loaded_pem_data,
-                password=password
+                password=bytes(USER_PASSWORD)
             )
 
             SIGN_PUBLIC_KEY = SIGN_PRIVATE_KEY.public_key()
@@ -204,7 +235,7 @@ def generate_signature():
     pem_private_data = SIGN_PRIVATE_KEY.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.BestAvailableEncryption(password)
+        encryption_algorithm=serialization.BestAvailableEncryption(bytes(USER_PASSWORD))
     )
 
     # Записываем байты в файл
@@ -212,17 +243,125 @@ def generate_signature():
         f.write(pem_private_data)
 
 
+# Проверка существования цифровой подписи собеседника и ее получение
+def check_and_get_companion_sign():
+
+    global COMPANION_SIGN
+
+    COMPANION_SIGN_FILE_PATH = os.path.join(COMPANION_NODE_ID, KNOWN_NODES_DIR_PATH)
+
+    # цифровая подпись существует
+    # достаем из файла и расшифровываем ее
+    if os.path.exists(COMPANION_SIGN_FILE_PATH):
+
+        with open(COMPANION_SIGN_FILE_PATH, "rb") as f:
+            file_content = f.read()
+
+        salt = file_content[:16]
+        nonce = file_content[16:28]
+        encrypted_data = file_content[28:]
+
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            info=b"public-key-encryption",
+        )
+        up_aes_key = hkdf.derive(USER_PASSWORD)
+
+        aesgcm = AESGCM(up_aes_key)
+        pem_public_bytes = aesgcm.decrypt(nonce, encrypted_data, associated_data=None)
+
+        loaded_public_key = serialization.load_pem_public_key(pem_public_bytes)
+
+        # ждем, так как собеседник может отправить свою подпись
+        time.sleep(5)
+
+        # если собеседник не отправил свою подпись, то значит та которая в файле - актуальна
+        if not COMPANION_SIGN:
+            COMPANION_SIGN = loaded_public_key
+            return
+
+        # если не существует то мы отправляем собеседнику свою подпись, а он в ответ должен отправить свою подпись.
+        # далее уже происходит проверка подписей
+
+    else:
+
+        sign_public_bytes_pem = SIGN_PUBLIC_KEY.public_bytes(
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.CompressedPoint
+        )
+
+        SENDER.send_sign(sign_public_bytes_pem)
+
+    # Если код продолжается, то значит что новая подпись пришла или же подписи просто нет в файле, и нужно получить новую подпись от собеседника и записать ее в файл
+
+    while not COMPANION_SIGN:
+        print_formatted_text(HTML(f'<ansiyellow>Waiting companion signature...</ansiyellow>\n'))
+        time.sleep(5)
+
+
+    # Вывод подписи пользователя
+    print_formatted_text(HTML(f'<ansiyellow>Your signature. Show this to companion:\n{get_firts_last_4_chars_sign(SIGN_PUBLIC_KEY)}</ansiyellow>\n'))
+    # Проверка подписи собеседника пользователем
+    if answer(f"Is the companion signature correct?\n{get_firts_last_4_chars_sign(COMPANION_SIGN)}"):
+
+        # Доверяем, записываем, используем эту подпись
+
+        # Зашифровываем публичную подпись собеседника паролем
+
+        pem_public_bytes = COMPANION_SIGN.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+
+        salt = os.urandom(16)
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            info=b"public-key-encryption",
+        )
+        up_aes_key = hkdf.derive(USER_PASSWORD)
+
+        aesgcm = AESGCM(up_aes_key)
+        nonce = os.urandom(12)
+        encrypted_public_data = aesgcm.encrypt(nonce, pem_public_bytes, associated_data=None)
+
+        # В файл сохраняем уже зашифрованную подпись
+
+        with open(COMPANION_SIGN_FILE_PATH, "wb") as f:
+            f.write(salt + nonce + encrypted_public_data)
+
+    else:
+        raise TypeError("do not trust the signature")
+
+
 # Принимает готовые данные от Listener
 # а именно PayloadPacket
 def ready_data_ingester(pack_type, payload_packet: packet.PayloadPacket):
 
+    global COMPANION_NODE_ID
+    global COMPANION_SIGN
+    global COMPANION_PUBLIC_KEY
+
     if pack_type == packet.PackTypes.SERVICE.value:
 
-        print(packet.CMDTypes(payload_packet.pack_type).name)
-        print(payload_packet.payload)
+        # print(packet.CMDTypes(payload_packet.pack_type).name)
+        # print(payload_packet.payload)
 
-        if payload_packet.pack_type == packet.CMDTypes.MY_NODE_ID:
-            pass
+        if payload_packet.pack_type == packet.CMDTypes.MY_NODE_ID.value:
+            COMPANION_NODE_ID = payload_packet.payload.decode()
+
+        if payload_packet.pack_type == packet.CMDTypes.MY_SIGN.value:
+            print("Listener: new COMPANION_SIGN")
+            COMPANION_SIGN = ec.EllipticCurvePublicKey.from_encoded_point(
+                ec.SECP256R1(),
+                payload_packet.payload
+            )
+
+        if payload_packet.pack_type == packet.CMDTypes.MY_PUBLIC_KEY.value:
+            COMPANION_PUBLIC_KEY = payload_packet.payload
 
         # если получили node_id и подпись, то DO_SIGN = True
         # если получили public_key, то DO_ENCRYPT = True
@@ -239,8 +378,9 @@ def ready_data_ingester(pack_type, payload_packet: packet.PayloadPacket):
             print("Not TEXT data type:\n", payload_packet.payload)
 
 
-
-
+def remove_password_from_ram():
+    for i in range(len(USER_PASSWORD)):
+        USER_PASSWORD[i] = 0
 
 
 
@@ -289,14 +429,28 @@ def listener1():
         time.sleep(5)
 
 
+
+def get_firts_last_4_chars_sign(sign):
+
+    sign_public_bytes_pem = sign.public_bytes(
+        encoding=serialization.Encoding.X962,
+        format=serialization.PublicFormat.CompressedPoint
+    )
+
+    first_4 = sign_public_bytes_pem[:4]
+    last_4 = sign_public_bytes_pem[-4:]
+    return f"{first_4.hex()}...{last_4.hex()}"
+
+
+
 # Для вопросов
 def answer(text, yes_default=False):
     if yes_default:
-        user_input = session.prompt(HTML(f"{text} (y/N): ")).strip().lower()
+        user_input = pt_session.prompt(HTML(f"{text} (y/N): ")).strip().lower()
         if not user_input:
             return True
     else:
-        user_input = session.prompt(HTML(f"{text} (y/N): ")).strip().lower()
+        user_input = pt_session.prompt(HTML(f"{text} (y/N): ")).strip().lower()
         if not user_input:
             return False
 
