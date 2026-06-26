@@ -41,6 +41,8 @@ SIGN_PRIVATE_KEY = None
 # Публичный ключ
 SIGN_PUBLIC_KEY = None
 
+MY_PRIVATE_KEY = None
+
 # Ключ шифрования AES
 AES_KEY = None
 
@@ -93,12 +95,11 @@ def init():
     # Генерация ID узла
     generate_node_id()
 
+    # - - РАБОТА С ПОДПИСЯМИ - -
+    print_formatted_text(HTML(f'\n - - SIGNATURES - - \n'))
+
     # Чтение или генерация цифровой подписи данного узла
     generate_signature()
-
-
-    # - - РАБОТА С ПОДПИСЯМИ - -
-
 
     # Передача друг другу Node ID
     SENDER.send_node_id(NODE_ID)
@@ -107,30 +108,22 @@ def init():
     while not COMPANION_NODE_ID:
         time.sleep(0.1)
 
-    print("COMPANION_NODE_ID", "=", COMPANION_NODE_ID)
+    # print("COMPANION_NODE_ID", "=", COMPANION_NODE_ID)
 
     # Проверка существования цифровой подписи собеседника
-    check_and_get_companion_sign()
-
-
     # Передача цифровой подписи
-
     # Затем спрашиваем у пользователя доверяем ли этой подписи, показывая первые 4 символа, и последние
-
-    # Ветвеление*
-
+    check_and_get_companion_sign()
 
     remove_password_from_ram()
 
+    SENDER.update_sign_private_key(SIGN_PRIVATE_KEY)
 
     # - - РАБОТА С КЛЮЧАМИ ШИФРОВАНИЯ - -
+    print_formatted_text(HTML(f'\n - - ENCRYPTION KEYS - - \n'))
 
-
-    # Генерация публичного ключа
-
-    # Передача публичного ключа
-
-    # Вычисление симетричного ключа
+    # Генерация и обмен публичными ключами
+    generate_and_exchange_ecc_keys()
 
 
 # Конфигурация мессенджера
@@ -229,6 +222,7 @@ def generate_signature():
     # ... генерация
 
     SIGN_PRIVATE_KEY = ec.generate_private_key(ec.SECP256R1())
+    SIGN_PUBLIC_KEY = SIGN_PRIVATE_KEY.public_key()
 
     # Сохранение приватного ключа в файл в зашифрованном виде
 
@@ -287,12 +281,12 @@ def check_and_get_companion_sign():
 
     else:
 
-        sign_public_bytes_pem = SIGN_PUBLIC_KEY.public_bytes(
+        sign_public_bytes_X962 = SIGN_PUBLIC_KEY.public_bytes(
             encoding=serialization.Encoding.X962,
             format=serialization.PublicFormat.CompressedPoint
         )
 
-        SENDER.send_sign(sign_public_bytes_pem)
+        SENDER.send_sign(sign_public_bytes_X962)
 
     # Если код продолжается, то значит что новая подпись пришла или же подписи просто нет в файле, и нужно получить новую подпись от собеседника и записать ее в файл
 
@@ -337,6 +331,31 @@ def check_and_get_companion_sign():
         raise TypeError("do not trust the signature")
 
 
+# Генерация и обмен публичными ключами
+def generate_and_exchange_ecc_keys():
+
+    # Генерация пары ключей
+    MY_PRIVATE_KEY = ec.generate_private_key(ec.SECP256R1())
+    my_public_key = MY_PRIVATE_KEY.public_key()
+    my_pkey_bytes = my_public_key.public_bytes(
+            encoding=serialization.Encoding.X962,
+            format=serialization.PublicFormat.CompressedPoint
+        )
+
+    # Передача публичного ключа
+    SENDER.send_public_key(my_pkey_bytes)
+
+    # Ожидаем публичный ключ от собеседника
+    while not COMPANION_PUBLIC_KEY:
+        print_formatted_text(HTML(f'<ansiyellow>Waiting companion public key...</ansiyellow>\n'))
+        time.sleep(5)
+
+    print("okey")
+
+    # Вычисление симетричного ключа
+
+
+
 # Принимает готовые данные от Listener
 # а именно PayloadPacket
 def ready_data_ingester(pack_type, payload_packet: packet.PayloadPacket):
@@ -354,14 +373,17 @@ def ready_data_ingester(pack_type, payload_packet: packet.PayloadPacket):
             COMPANION_NODE_ID = payload_packet.payload.decode()
 
         if payload_packet.pack_type == packet.CMDTypes.MY_SIGN.value:
-            print("Listener: new COMPANION_SIGN")
+            # print("Listener: new COMPANION_SIGN")
             COMPANION_SIGN = ec.EllipticCurvePublicKey.from_encoded_point(
                 ec.SECP256R1(),
                 payload_packet.payload
             )
 
         if payload_packet.pack_type == packet.CMDTypes.MY_PUBLIC_KEY.value:
-            COMPANION_PUBLIC_KEY = payload_packet.payload
+            COMPANION_PUBLIC_KEY = ec.EllipticCurvePublicKey.from_encoded_point(
+                ec.SECP256R1(),
+                payload_packet.payload
+            )
 
         # если получили node_id и подпись, то DO_SIGN = True
         # если получили public_key, то DO_ENCRYPT = True

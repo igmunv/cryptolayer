@@ -15,7 +15,7 @@ class Test(BaseModule):
             self.listener = listener
 
         def send(self, text: str):
-            print(text)
+            # print(text)
             self.listener.listen(text)
 
 

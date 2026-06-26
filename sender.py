@@ -34,6 +34,9 @@ class Sender:
     def update_aes_key(self, new_aes_key):
         self.aes_key = new_aes_key
 
+    def update_sign_private_key(self, new_private_key):
+        self.private_key = new_private_key
+
     def send_service(self, cmd_type, data: bytes):
         packet = pckt.PayloadPacket(cmd_type, data).to_bytes()
         self._send(packet, pckt.PackTypes.SERVICE.value)
@@ -52,6 +55,7 @@ class Sender:
 
     def send_public_key(self, public_key: bytes):
         packet = pckt.PayloadPacket(pckt.CMDTypes.MY_PUBLIC_KEY.value, public_key).to_bytes()
+        # если отправлять с подписью, то ошибка, а если без, то нет ошибки!!!!
         self._send(packet, pckt.PackTypes.SERVICE.value, do_encrypt=False, do_sign=True)
 
     # Здесь происходит сжатие, шифрование, подпись, кодировка
@@ -84,13 +88,6 @@ class Sender:
                     packet,
                     ec.ECDSA(hashes.SHA256())
                 )
-
-                public_bytes = self.private_key.public_key().public_bytes(
-                    encoding=serialization.Encoding.DER,
-                    format=serialization.PublicFormat.SubjectPublicKeyInfo
-                )
-
-                public_key_hex = public_bytes.hex()
 
                 # объединяем (подпись + пакет)
                 sig_len = len(signature).to_bytes(1, 'big')
