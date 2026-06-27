@@ -278,6 +278,7 @@ def node_id_exchange(status):
     # Ожидаем NODE ID собеседника
     while not COMPANION_NODE_ID:
         status.update("[!] SIGNATURES: [yellow]Waiting for companion node id...[/yellow]")
+        # !!!!!!!! нужно сделать так чтобы если долго не приходит то отправить заново свой и ждать. нужно сделать так везде во всех while
         time.sleep(0.1)
 
     # print("COMPANION_NODE_ID", "=", COMPANION_NODE_ID)

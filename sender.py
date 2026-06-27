@@ -107,4 +107,3 @@ class Sender:
         for n, packet in enumerate(ready_packets):
             ready_text = " ".join(packet)
             self.module_send(ready_text)
-            # time.sleep(config.DELAY)
