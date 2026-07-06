@@ -10,15 +10,18 @@ from cryptography.hazmat.primitives import hashes
 class Transitional(Base):
 
 
-    DO_SIGN = False
-    SIGN_PRIVATE_KEY = None
-    COMPANION_SIGN_PUBLIC_KEY = None
+    def __init__(self):
+        super().__init__()
 
-    # Класс-Уровень выше
-    UPPER_LEVEL = None
+        self.DO_SIGN = False
+        self.SIGN_PRIVATE_KEY = None
+        self.COMPANION_SIGN_PUBLIC_KEY = None
 
-    # Класс-Уровень ниже
-    LOWER_LEVEL = None
+        # Класс-Уровень выше
+        self.UPPER_LEVEL = None
+
+        # Класс-Уровень ниже
+        self.LOWER_LEVEL = None
 
 
     # постоянно читает данные из PENDING_PROCESSING_BUF и обрабатывает их и отправляет выше

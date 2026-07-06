@@ -496,6 +496,9 @@ def generate_and_exchange_ecc_keys(status):
     LOGGER.info("Encryption: Symmetric key computation...")
     AES_KEY = MY_PRIVATE_KEY.exchange(ec.ECDH(), COMPANION_PUBLIC_KEY)
 
+    status.update("[!] Encryption: [yellow]Wait 3 sec for send public key without encryption...[/yellow]")
+    time.sleep(3)
+
     PRESENTATION_LEVEL.DO_ENCRYPT = True
     PRESENTATION_LEVEL.AES_KEY = AES_KEY
 
