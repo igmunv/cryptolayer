@@ -26,17 +26,9 @@ class CMDTypes(Enum):
 # Пакет транспортного уровня
 class TransportPacket:
 
+
     HEADER_FORMAT = "!BBHHQH"
     HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
-
-    # Поля заголовка пакета транспортного уровня
-    flags = None
-    stream_id = None
-    chunk_count = None
-    chunk_id = None
-    time = None
-    size = None
-    payload = None
 
 
     def __init__(self, flags, stream_id, chunk_count, chunk_id, time, payload):
@@ -75,14 +67,9 @@ class TransportPacket:
 # Пакет транспортного уровня
 class ApplicationPacket:
 
+
     HEADER_FORMAT = "!BBH"
     HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
-
-    # Поля заголовка пакета транспортного уровня
-    pack_type = None
-    data_type = None
-    size = None
-    payload = None
 
 
     def __init__(self, pack_type, data_type, payload):

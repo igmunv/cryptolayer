@@ -11,8 +11,11 @@ from levels.base import Base
 class Presentation(Base):
 
 
-    DO_ENCRYPT = False
-    AES_KEY = None
+    def __init__(self):
+        super().__init__()
+
+        self.DO_ENCRYPT = False
+        self.AES_KEY = None
 
 
     # постоянно читает данные из PENDING_PROCESSING_BUF и обрабатывает их и отправляет выше

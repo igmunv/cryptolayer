@@ -9,27 +9,22 @@ from levels.base import Base
 class Transport(Base):
 
 
-    # Буффер пришедших данных
-    PENDING_PROCESSING_BUF = []
-    PEND_PROC_BUF_LOCK = threading.Lock()
+    def __init__(self):
+        super().__init__()
 
-    # Буффер готовых к передаче данных
-    PENDING_SEND_BUF = []
-    PEND_SEND_BUF_LOCK = threading.Lock()
+        # Словарь отправленных пакетов, ждущие подтверждения получения
+        self.PENDING_ACK_PACKS = {}
+        self.PENDING_ACK_PACKS_LOCK = threading.Lock()
 
-    # Словарь отправленных пакетов, ждущие подтверждения получения
-    PENDING_ACK_PACKS = {}
-    PENDING_ACK_PACKS_LOCK = threading.Lock()
+        # Потоки байтов которые мы ожидаем
+        # ID потока: {count: количество пакетов в данном потоке, packets: [массив полученных пакетов в потоке]}
+        self.WAITING_STREAMS = {}
 
-    # Потоки байтов которые мы ожидаем
-    # ID потока: {count: количество пакетов в данном потоке, packets: [массив полученных пакетов в потоке]}
-    WAITING_STREAMS = {}
+        # Текущий STREAM ID. Нужен для нумерации потоков байт
+        self.CURRENT_STREAM_ID = 0
 
-    # Текущий STREAM ID. Нужен для нумерации потоков байт
-    CURRENT_STREAM_ID = 0
-
-    # Размер чанков данных в байтах
-    CHUNK_SIZE = 100
+        # Размер чанков данных в байтах
+        self.CHUNK_SIZE = 100
 
 
     # Отправка подтверждения о получении пакета
