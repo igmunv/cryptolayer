@@ -15,17 +15,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create Archives
-        run: |
-          RELEASE_NAME="CryptoLayer-${{ github.ref_name }}"
-
-          cp requirements.txt src/
-
-          mv src "$RELEASE_NAME"
-
-          zip -r "${RELEASE_NAME}.zip" "$RELEASE_NAME"
-          tar -czf "${RELEASE_NAME}.tar.gz" "$RELEASE_NAME"
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/')
@@ -35,8 +24,5 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            *.zip
-            *.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
