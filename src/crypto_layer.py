@@ -10,8 +10,7 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-import module_manager
-from modules.base import BaseModule
+from base_module import BaseModule
 
 from levels.application import Application
 from levels.presentation import Presentation
@@ -27,10 +26,19 @@ from UIProvider import UIProvider
 class CryptoLayer:
 
 
-    def __init__(self, ui_provider: UIProvider, data_dir: str):
+    def __init__(self, ui_provider: UIProvider, data_dir: str, module_class: BaseModule, password: str):
 
+        # UI
         self.ui_provider = ui_provider
+
+        # Путь к директории для данных
         self.data_dir = data_dir
+
+        # Класс модуля
+        self.MODULE_CLASS = module_class
+
+        # Пароль пользователя
+        self.USER_PASSWORD = bytearray(password.encode('utf-8'))
 
         # Пути к файлам
         self.KNOWN_NODES_DIR_PATH = os.path.join(data_dir, config.KNOWN_NODES_DIR_NAME)
@@ -40,10 +48,6 @@ class CryptoLayer:
 
         # Логирование
         self.LOGGER = logging.getLogger(f"{self.__class__.__module__}.{self.__class__.__name__}")
-
-        # Модуль
-        self.MODULE_CLASS = None
-        self.MODULE_CLASS_SEND = None
 
         # ID собеседника в мессенджере
         self.COMPANION_ID = None
@@ -72,9 +76,6 @@ class CryptoLayer:
         # ECC public key собеседника
         self.COMPANION_PUBLIC_KEY = None
 
-        # Пароль пользователя
-        self.USER_PASSWORD = None
-
         # Уровни
         self.TRANSITIONAL_LEVEL = None
         self.TRANSPORT_LEVEL = None
@@ -86,11 +87,6 @@ class CryptoLayer:
 
 
     def init(self):
-
-        # Спрашиваем пароль
-        upass = self.ui_provider.request_password("Your password")
-        self.USER_PASSWORD = bytearray(upass.encode('utf-8'))
-        del upass
 
         # Создаем директорию с данными
         os.makedirs(self.data_dir, exist_ok=True)
@@ -137,22 +133,13 @@ class CryptoLayer:
 
     def init_module(self):
 
-        self.ui_provider.update_status("Module", "Loading...", "in_progress")
-
-        # Выбор мессенджера
-        module_manager.load()
-        selected_module_index = self.ui_provider.select_module(module_manager.get_modules())
-        self.MODULE_CLASS = module_manager.get_module_by_index(selected_module_index)
-
-        # ID собеседника
-        self.COMPANION_ID = self.ui_provider.request_data("Companion ID (in module)", str)
-
-        # Спрашиваем у пользователя Credentials
-        creds = self.ui_provider.get_credentials(self.MODULE_CLASS.get_creds())
+        self.ui_provider.update_status("Module", "Create session...", "in_progress")
 
         # Создаем сессию в модуле мессенджера
-        self.MODULE_CLASS.create_session(creds, self.TRANSITIONAL_LEVEL_INGESTER, self.COMPANION_ID)
+        self.MODULE_CLASS.create_session(self.TRANSITIONAL_LEVEL_INGESTER)
         self.TRANSITIONAL_LEVEL.update_levels(self.TRANSPORT_LEVEL, self.MODULE_CLASS.sender)
+
+        self.ui_provider.update_status("Module", "Done", "success")
 
 
     def signatures_setup(self):
