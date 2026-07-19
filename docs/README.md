@@ -86,6 +86,44 @@ CryptoLayer - это библиотека, позволяющая безопас
 
 ### 2.1. Быстрый старт
 
+#### 1. Добавляем CryptoLayer в проект:
+
+Добавляем библиотеку в проект как сабмодуль Git:
+
+```bash
+git submodule add https://github.com/igmunv/cryptolayer cryptolayer
+
+git add .gitmodules cryptolayer/
+
+git commit -m "Add new submodule: cryptolayer"
+```
+
+ИЛИ, если не хочется возиться с Git, скачиваем последнюю версию библиотеки: 
+
+https://github.com/igmunv/cryptolayer/releases/latest
+
+и затем распаковываем в директории проекта.
+
+#### 2. Добавляем библиотеку в конфигурационные файлы проекта
+
+В конец файла `requirements.txt` или если используется `pyproject.toml`, то в список поля `dependencies` добавляем следующие зависимости:
+
+```
+-e ./cryptolayer
+cryptolayer-module-interface @ git+https://github.com/igmunv/cryptolayer-module-interface.git
+```
+
+Здесь мы добавили CryptoLayer как библиотеку Python, теперь в коде можно просто прописывать: 
+
+```python
+from crypto_layer import CryptoLayer
+```
+
+А также добавили библиотеку `cryptolayer-module-interface`, она нужна для того, чтобы работать с модулями. Теперь её также можно легко импортировать в коде:
+
+```python
+from base_module import BaseModule
+```
 
 
 ## 3. Как работает
